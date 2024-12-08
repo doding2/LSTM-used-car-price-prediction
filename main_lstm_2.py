@@ -10,7 +10,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_square
 from sklearn.preprocessing import MinMaxScaler
 
 
-def preprocess(dataset: pd.DataFrame) -> pd.DataFrame:
+def preprocess_with_no_scaling(dataset: pd.DataFrame) -> pd.DataFrame:
     dataset = dataset[['가격', '최초등록일', '연식', '주행거리', '최대토크', '배기량', '최고출력', '연비']].copy()
 
     # parse date
@@ -156,7 +156,7 @@ def main2():
     dataset = pd.read_csv(f'dataset/{data_name}')
 
     # preprocessing
-    dataset = preprocess(dataset)
+    dataset = preprocess_with_no_scaling(dataset)
 
     X_train, y_train, X_test, scaler = prepare_train_test_normalize(dataset, 5, 2)
 

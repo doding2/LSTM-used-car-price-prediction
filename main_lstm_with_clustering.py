@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 
 
-def preprocess(dataset: pd.DataFrame) -> pd.DataFrame:
+def preprocess_with_scaling(dataset: pd.DataFrame) -> (pd.DataFrame, MinMaxScaler):
     dataset = dataset[['가격', '최초등록일', '연식', '주행거리', '최대토크', '배기량', '최고출력', '연비']].copy()
 
     # parse date
@@ -46,11 +46,11 @@ def preprocess(dataset: pd.DataFrame) -> pd.DataFrame:
     # dataset = dataset.reset_index(drop=True)
 
     # # min-max scaling
-    # scaler = MinMaxScaler()
-    # dataset = pd.DataFrame(scaler.fit_transform(dataset), columns=dataset.columns, index=dataset.index)
+    scaler = MinMaxScaler()
+    dataset = pd.DataFrame(scaler.fit_transform(dataset), columns=dataset.columns, index=dataset.index)
     print('Preprocessed Dataset:\n', dataset)
 
-    return dataset
+    return dataset, scaler
 
 
 def group_by_kmeans_clustering(dataset: pd.DataFrame, data_name: str = '') -> dict[str, pd.Series]:
@@ -145,13 +145,7 @@ def predict_with_lstm(dataset: pd.DataFrame, cluster_label: str, data_name: str 
     X = np.array(X)
     y = np.array(y)
 
-    # 테스트 데이터의 개수가 window size만큼 있도록 조정
-    if len(X) * 0.3 < window_size:
-        test_size = 0.3
-    else:
-        test_size = window_size / len(X)
-    print('test_size: ', test_size)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42, shuffle=False)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, shuffle=False)
 
     # reshape y for LSTM compatibility
     y_train = y_train.reshape(-1, 1)
@@ -164,18 +158,16 @@ def predict_with_lstm(dataset: pd.DataFrame, cluster_label: str, data_name: str 
     # 시계열 데이터에서 활성화 함수는 relu보다 tanh가 나음
     model = Sequential()
     model.add(LSTM(units=50, activation='tanh', return_sequences=True, input_shape=(window_size, 6)))
-    model.add(Dropout(0.2))
     model.add(LSTM(units=50, activation='tanh', return_sequences=False))
-    model.add(Dropout(0.2))
     model.add(Dense(units=1))
     model.summary()
 
     # train model
     # 초기 학습률 (learning_rate) 0.001에서 0.0005로 조정
     # 과적합을 방지하고 훈련 시간을 단축하기 위해 EarlyStopping 콜백을 활용
-    model.compile(optimizer=Adam(learning_rate=0.0005), loss='mean_squared_error')
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_squared_error')
     early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-    model.fit(X_train, y_train, epochs=100, batch_size=16, validation_split=0.2, callbacks=[early_stopping])
+    model.fit(X_train, y_train, epochs=50, batch_size=150, callbacks=[early_stopping])
     y_pred = model.predict(X_test)
 
     # 성능 평가 (스케일링 복구 포함)
@@ -207,10 +199,10 @@ def predict_with_lstm(dataset: pd.DataFrame, cluster_label: str, data_name: str 
 
 def evaluate_model(y_test, y_pred, scaler):
     # 역변환 (스케일링 복구)
-    # y_test = scaler.inverse_transform(y_test.reshape(-1, 1))
-    # y_pred = scaler.inverse_transform(y_pred.reshape(-1, 1))
-    y_test = y_test.flatten()
-    y_pred = y_pred.flatten()
+    y_test = scaler.inverse_transform(y_test.reshape(-1, 1))
+    y_pred = scaler.inverse_transform(y_pred.reshape(-1, 1))
+    # y_test = y_test.flatten()
+    # y_pred = y_pred.flatten()
 
     # RMSE 계산
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
@@ -240,7 +232,7 @@ def main():
     # print(dataset)
 
     # preprocessing
-    dataset = preprocess(dataset)
+    dataset, scaler = preprocess_with_scaling(dataset)
 
     # group data by clustering
     dataset_dict = group_by_dbscan_clustering(dataset, data_name)
@@ -248,7 +240,7 @@ def main():
     # check result by printing
     for cluster, df_cluster in dataset_dict.items():
         print(f"Count of Cluster {cluster}: {len(df_cluster)}\n")
-        # predict_with_lstm2(pd.DataFrame(df_cluster), cluster, data_name)
+        predict_with_lstm(pd.DataFrame(df_cluster), cluster, data_name)
 
     predict_with_lstm(dataset, "All", data_name)
 
