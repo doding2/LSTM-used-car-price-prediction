@@ -1,17 +1,17 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
-import matplotlib.pyplot as plt
-from keras.src.models import Sequential
-from keras.src.layers import Dense, LSTM, Dropout
-from keras.src.optimizers import Adam
-from keras.src.callbacks import EarlyStopping
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
 import seaborn as sns
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from keras.src.callbacks import EarlyStopping
+from keras.src.layers import Dense, LSTM, Dropout
+from keras.src.models import Sequential
+from keras.src.optimizers import Adam
+from sklearn.cluster import KMeans, DBSCAN
+from sklearn.decomposition import PCA
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
-from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import MinMaxScaler
+
 
 def preprocess(dataset: pd.DataFrame) -> pd.DataFrame:
     dataset = dataset[['가격', '최초등록일', '연식', '주행거리', '최대토크', '배기량', '최고출력', '연비']].copy()
@@ -43,11 +43,11 @@ def preprocess(dataset: pd.DataFrame) -> pd.DataFrame:
     print('Total NaN count:\n', dataset.isna().sum())
     dataset = dataset.dropna(axis=0, how='any')
     dataset = dataset.sort_index()
-    dataset = dataset.reset_index(drop=True)
+    # dataset = dataset.reset_index(drop=True)
 
-    # min-max scaling
-    scaler = MinMaxScaler()
-    dataset = pd.DataFrame(scaler.fit_transform(dataset), columns=dataset.columns, index=dataset.index)
+    # # min-max scaling
+    # scaler = MinMaxScaler()
+    # dataset = pd.DataFrame(scaler.fit_transform(dataset), columns=dataset.columns, index=dataset.index)
     print('Preprocessed Dataset:\n', dataset)
 
     return dataset
@@ -120,7 +120,6 @@ def group_by_dbscan_clustering(dataset: pd.DataFrame, data_name: str = '') -> di
 
     return results
 
-
 def predict_with_lstm(dataset: pd.DataFrame, cluster_label: str, data_name: str = ''):
     dataset = dataset.copy()
     dataset_X = dataset[['연식', '주행거리', '최대토크', '배기량', '최고출력', '연비']].to_numpy()
@@ -146,7 +145,13 @@ def predict_with_lstm(dataset: pd.DataFrame, cluster_label: str, data_name: str 
     X = np.array(X)
     y = np.array(y)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, shuffle=False)
+    # 테스트 데이터의 개수가 window size만큼 있도록 조정
+    if len(X) * 0.3 < window_size:
+        test_size = 0.3
+    else:
+        test_size = window_size / len(X)
+    print('test_size: ', test_size)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42, shuffle=False)
 
     # reshape y for LSTM compatibility
     y_train = y_train.reshape(-1, 1)
@@ -227,8 +232,12 @@ def evaluate_model(y_test, y_pred, scaler):
 
 def main():
     # read dataset
-    data_name = 'genesis_large.csv'
+    data_name = 'kia_large.csv'
     dataset = pd.read_csv(f'dataset/{data_name}')
+
+    # 특정 모델만 걸러내보기
+    # dataset = dataset.loc[dataset['이름'].str.startswith('기아 K5')]
+    # print(dataset)
 
     # preprocessing
     dataset = preprocess(dataset)
@@ -239,12 +248,10 @@ def main():
     # check result by printing
     for cluster, df_cluster in dataset_dict.items():
         print(f"Count of Cluster {cluster}: {len(df_cluster)}\n")
-        predict_with_lstm(pd.DataFrame(df_cluster), cluster, data_name)
+        # predict_with_lstm2(pd.DataFrame(df_cluster), cluster, data_name)
 
     predict_with_lstm(dataset, "All", data_name)
 
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     main()
 
