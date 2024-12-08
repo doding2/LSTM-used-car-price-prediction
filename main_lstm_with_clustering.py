@@ -53,11 +53,57 @@ def preprocess_with_scaling(dataset: pd.DataFrame) -> (pd.DataFrame, MinMaxScale
     return dataset, scaler
 
 
-def group_by_kmeans_clustering(dataset: pd.DataFrame, data_name: str = '') -> dict[str, pd.Series]:
+def group_by_kmeans_clustering_one_column(dataset: pd.DataFrame, data_name: str = '') -> dict[str, pd.Series]:
+    dataset = dataset.copy()
+    target_data = dataset[['가격']]
+
+    # Elbow Method
+    x = []
+    y = []
+
+    for k in range(1, 10):
+        kmeans = KMeans(n_clusters=k, random_state=7, n_init=10)
+        kmeans.fit(target_data)
+
+        x.append(k)
+        y.append(kmeans.inertia_)
+
+    plt.plot(x, y)
+    plt.title(f'Elbow Method\n({data_name})')
+    plt.xlabel('Number of Clusters')
+    plt.ylabel('Inertia')
+    plt.show()
+
+    # optimal k is 4 with genesis_large data
+    # optimal k is 3 with hyundai_large data
+    k = 4
+    model = KMeans(n_clusters=k, random_state=7, n_init=10)
+    model.fit(target_data)
+    target_data['labels'] = model.predict(target_data)
+    dataset['labels'] = target_data['labels']
+
+    # 시각화
+    plt.scatter(target_data['가격'], [0] * len(target_data), c=target_data['labels'], cmap='viridis', s=100, edgecolor='k')
+    plt.scatter(model.cluster_centers_, [0] * len(model.cluster_centers_), c='red', marker='x', label='Centroids')
+    plt.title("Clustering With Price Column Only")
+    plt.xlabel("price")
+    plt.yticks([])  # y축 제거
+    plt.legend()
+    plt.show()
+
+    # group result by labels
+    clusters = dataset['labels'].unique()
+    results = {cluster: dataset[dataset['labels'] == cluster].drop(columns='labels') for cluster in clusters}
+
+    return results
+
+
+def group_by_kmeans_clustering_multi_column(dataset: pd.DataFrame, data_name: str = '') -> dict[str, pd.Series]:
     pca = PCA(n_components=2)
     pca.fit(dataset)
     pca_data = pd.DataFrame(data = pca.transform(dataset), columns=['pc1', 'pc2'])
 
+    # Elbow Method
     x = []
     y = []
 
@@ -70,6 +116,8 @@ def group_by_kmeans_clustering(dataset: pd.DataFrame, data_name: str = '') -> di
 
     plt.plot(x, y)
     plt.title(f'Elbow Method\n({data_name})')
+    plt.xlabel('Number of Clusters')
+    plt.ylabel('Inertia')
     plt.show()
 
     # optimal k is 4 with genesis_large data
@@ -235,7 +283,7 @@ def main():
     dataset, scaler = preprocess_with_scaling(dataset)
 
     # group data by clustering
-    dataset_dict = group_by_dbscan_clustering(dataset, data_name)
+    dataset_dict = group_by_kmeans_clustering_one_column(dataset, data_name)
 
     # check result by printing
     for cluster, df_cluster in dataset_dict.items():
