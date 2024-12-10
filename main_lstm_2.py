@@ -91,19 +91,6 @@ def prepare_train_test_normalize(dataset: pd.DataFrame, time_steps, for_periods)
 
 def LSTM_model(X_train, y_train, X_test, scaler):
     # LSTM 아키텍쳐
-    # model = Sequential()
-    # model.add(Input(shape=(X_train.shape[1], 1)))
-    # model.add(
-    #     LSTM(
-    #         units=50,
-    #         return_sequences=True,
-    #         input_shape=(X_train.shape[1], 1),
-    #         activation='tanh'
-    #     )
-    # )
-    # model.add(LSTM(units=50, activation='tanh'))
-    # model.add(Dense(units=2))
-
     model = Sequential()
     model.add(Input(shape=(X_train.shape[1], 1)))
     model.add(
@@ -116,6 +103,34 @@ def LSTM_model(X_train, y_train, X_test, scaler):
     )
     model.add(LSTM(units=50, activation='tanh'))
     model.add(Dense(units=2))
+
+    # 컴파일링
+    lr_schedule = ExponentialDecay(
+        initial_learning_rate=0.01,
+        decay_steps=100000,
+        decay_rate=0.96,
+        staircase=False
+    )
+    model.compile(optimizer=SGD(learning_rate=lr_schedule, momentum=0.9, nesterov=False), loss='mean_squared_error')
+
+    # training data 세트에 피팅하기
+    model.fit(X_train, y_train, epochs=50, batch_size=150, verbose=0)
+
+    # X_test를 모델에 넣어서 예측하기
+    LSTM_prediction = model.predict(X_test)
+
+    # 스케일러에 예측값 넣어 반환하기
+    LSTM_prediction = scaler.inverse_transform(LSTM_prediction)
+
+    return model, LSTM_prediction
+
+
+def LSTM_model_bidirectional(X_train, y_train, X_test, scaler):
+    # LSTM 아키텍쳐
+    model = Sequential()
+    model.add(Bidirectional(LSTM(units=64, return_sequences=True, input_shape=(X_train.shape[1], 1))))
+    model.add(Bidirectional(LSTM(units=64, return_sequences=False)))
+    model.add(Dense(units=1))
 
     # 컴파일링
     lr_schedule = ExponentialDecay(
@@ -173,7 +188,7 @@ def main2():
 
     X_train, y_train, X_test, scaler = prepare_train_test_normalize(dataset, 5, 2)
 
-    model, LSTM_prediction = LSTM_model(X_train, y_train, X_test, scaler)
+    model, LSTM_prediction = LSTM_model_bidirectional(X_train, y_train, X_test, scaler)
     plot_prediction(dataset, LSTM_prediction)
     plt.show()
 
