@@ -70,6 +70,7 @@ def plot(true, predicted, divider, scaler):
 
 def main3():
     # read dataset
+    # https://stackoverflow.com/questions/50054419/extremely-poor-prediction-lstm-time-series
     data_name = 'genesis_large.csv'
     raw = pd.read_csv(f'dataset/{data_name}')
     print(raw.shape)

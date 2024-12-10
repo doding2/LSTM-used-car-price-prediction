@@ -4,7 +4,7 @@ import pandas as pd
 from keras.src.layers import Dense, LSTM, Input, Embedding, Bidirectional
 from keras.src.metrics import MeanSquaredError
 from keras.src.models import Sequential
-from keras.src.optimizers import SGD
+from keras.src.optimizers import SGD, Adam
 from keras.src.optimizers.schedules import ExponentialDecay
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_squared_log_error, r2_score
 from sklearn.preprocessing import MinMaxScaler
@@ -128,8 +128,8 @@ def LSTM_model(X_train, y_train, X_test, scaler):
 def LSTM_model_bidirectional(X_train, y_train, X_test, scaler):
     # LSTM 아키텍쳐
     model = Sequential()
-    model.add(Bidirectional(LSTM(units=64, return_sequences=True, input_shape=(X_train.shape[1], 1))))
-    model.add(Bidirectional(LSTM(units=64, return_sequences=False)))
+    model.add(Bidirectional(LSTM(units=512, return_sequences=True, input_shape=(X_train.shape[1], 1))))
+    model.add(Bidirectional(LSTM(units=256, return_sequences=False)))
     model.add(Dense(units=1))
 
     # 컴파일링
@@ -139,10 +139,11 @@ def LSTM_model_bidirectional(X_train, y_train, X_test, scaler):
         decay_rate=0.96,
         staircase=False
     )
-    model.compile(optimizer=SGD(learning_rate=lr_schedule, momentum=0.9, nesterov=False), loss='mean_squared_error')
+    # model.compile(optimizer=SGD(learning_rate=lr_schedule, momentum=0.9, nesterov=False), loss='mean_squared_error')
+    model.compile(optimizer=Adam(learning_rate=lr_schedule), loss='mean_squared_error')
 
     # training data 세트에 피팅하기
-    model.fit(X_train, y_train, epochs=50, batch_size=150, verbose=0)
+    model.fit(X_train, y_train, epochs=50, batch_size=128, verbose=0)
 
     # X_test를 모델에 넣어서 예측하기
     LSTM_prediction = model.predict(X_test)
@@ -186,17 +187,31 @@ def main2():
     # preprocessing
     dataset = preprocess_with_no_scaling(dataset)
 
+    # split train and test with normalization
     X_train, y_train, X_test, scaler = prepare_train_test_normalize(dataset, 5, 2)
 
+    # predict using LSTM
     model, LSTM_prediction = LSTM_model_bidirectional(X_train, y_train, X_test, scaler)
-    plot_prediction(dataset, LSTM_prediction)
-    plt.show()
 
+    # evaluate prediction performance
     y_pred = pd.DataFrame(LSTM_prediction[:, 0])
     y_test = dataset.loc['2024':, '가격'][0:len(LSTM_prediction)]
     y_test.reset_index(drop=True, inplace=True)
-    evaluation_result = confirm_result(y_test, y_pred)
-    print(evaluation_result)
+    evaluation_results = confirm_result(y_test, y_pred)
+    print(evaluation_results)
+
+    # plot prediction and performance
+    metrics_text = (
+        f"RMSE: {evaluation_results['RMSE']:.4f}\n"
+        f"MAE: {evaluation_results['MAE']:.4f}\n"
+        f"R²: {evaluation_results['R²']:.4f}\n"
+        f"MAPE: {evaluation_results['MAPE']:.2f}%"
+    )
+    plt.gca().text(0.02, 0.98, metrics_text, transform=plt.gca().transAxes,
+                   fontsize=10, verticalalignment='top', bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
+
+    plot_prediction(dataset, LSTM_prediction)
+    plt.show()
 
 
 # Press the green button in the gutter to run the script.
