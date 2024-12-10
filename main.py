@@ -72,8 +72,14 @@ def prepare_train_test_normalize(dataset: pd.DataFrame, time_steps, for_periods)
     X_train = []
     y_train = []
     for i in range(time_steps, ts_train_len - 1):
+        # Default code
         X_train.append(ts_train_scaled[i-time_steps:i, 0])
-        y_train.append(ts_train_scaled[i, 0])
+        y_train.append(ts_train_scaled[i:i+for_periods, 0])
+
+        # code when apply attention
+        # X_train.append(ts_train_scaled[i - time_steps:i, 0])
+        # y_train.append(ts_train_scaled[i, 0])
+
     X_train, y_train = np.array(X_train), np.array(y_train)
 
     # 3차원으로 재구성 하기
@@ -218,7 +224,7 @@ def confirm_result(y_test, y_pred):
     return Result
 
 
-def main2():
+def main():
     # read dataset
     data_name = 'kia_large.csv'
     dataset = pd.read_csv(f'dataset/{data_name}')
@@ -234,9 +240,9 @@ def main2():
     # custom_loss = GradientEnhancedLoss(alpha=0.7, beta=1.5)
 
     # 3.b AsymmetricLoss 적용
-    # custom_loss = AsymmetricLoss(threshold=0.1, penalty_factor=2.0)
+    custom_loss = AsymmetricLoss(threshold=0.1, penalty_factor=2.0)
 
-    model, LSTM_prediction = LSTM_model_with_attention(X_train, y_train, X_test, scaler)
+    model, LSTM_prediction = LSTM_model_bidirectional(X_train, y_train, X_test, scaler, custom_loss)
 
     # evaluate prediction performance
     y_pred = pd.DataFrame(LSTM_prediction[:, 0])
@@ -260,4 +266,4 @@ def main2():
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    main2()
+    main()

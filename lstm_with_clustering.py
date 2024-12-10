@@ -281,7 +281,7 @@ def evaluate_model(y_test, y_pred, scaler):
     return {"RMSE": rmse, "MAE": mae, "R²": r2, "MAPE": mape}
 
 
-def main():
+def main_with_clustering():
     # read dataset
     data_name = 'genesis_large.csv'
     dataset = pd.read_csv(f'dataset/{data_name}')
@@ -311,5 +311,5 @@ def main():
     predict_with_lstm(dataset, "All", data_name)
 
 if __name__ == '__main__':
-    main()
+    main_with_clustering()
 
