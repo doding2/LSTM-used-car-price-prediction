@@ -121,6 +121,7 @@ def group_by_kmeans_clustering_multi_column(dataset: pd.DataFrame, data_name: st
     plt.show()
 
     # optimal k is 4 with genesis_large data
+    # optimal k is 2 with genesis_large data whose name starts with 제네시스 더 올 뉴 G80
     # optimal k is 3 with hyundai_large data
     k = 4
     model = KMeans(n_clusters=k, random_state=7, n_init=10)
@@ -193,7 +194,15 @@ def predict_with_lstm(dataset: pd.DataFrame, cluster_label: str, data_name: str 
     X = np.array(X)
     y = np.array(y)
 
+    # # 테스트 데이터의 개수가 window size만큼 있도록 조정
+    # if len(X) * 0.3 < window_size:
+    #     test_size = 0.3
+    # else:
+    #     test_size = window_size / len(X)
+    # print('test_size: ', test_size)
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42, shuffle=False)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, shuffle=False)
+
 
     # reshape y for LSTM compatibility
     y_train = y_train.reshape(-1, 1)
@@ -220,13 +229,15 @@ def predict_with_lstm(dataset: pd.DataFrame, cluster_label: str, data_name: str 
 
     # 성능 평가 (스케일링 복구 포함)
     scaler = MinMaxScaler()
-    scaler.fit(dataset[['가격']])
+    # scaler.fit(dataset[['가격']])
     evaluation_results = evaluate_model(y_test, y_pred, scaler)
 
     # Plot results
     plt.figure(figsize=(10, 6))
-    plt.plot(scaler.inverse_transform(y_test.reshape(-1, 1)), color='red', label='Real Price')
-    plt.plot(scaler.inverse_transform(y_pred.reshape(-1, 1)), color='blue', label='Predicted Price')
+    # plt.plot(scaler.inverse_transform(y_test.reshape(-1, 1)), color='red', label='Real Price')
+    # plt.plot(scaler.inverse_transform(y_pred.reshape(-1, 1)), color='blue', label='Predicted Price')
+    plt.plot(y_test.reshape(-1, 1), color='red', label='Real Price')
+    plt.plot(y_pred.reshape(-1, 1), color='blue', label='Predicted Price')
 
     # Add evaluation metrics to the plot
     metrics_text = (
@@ -247,10 +258,10 @@ def predict_with_lstm(dataset: pd.DataFrame, cluster_label: str, data_name: str 
 
 def evaluate_model(y_test, y_pred, scaler):
     # 역변환 (스케일링 복구)
-    y_test = scaler.inverse_transform(y_test.reshape(-1, 1))
-    y_pred = scaler.inverse_transform(y_pred.reshape(-1, 1))
-    # y_test = y_test.flatten()
-    # y_pred = y_pred.flatten()
+    # y_test = scaler.inverse_transform(y_test.reshape(-1, 1))
+    # y_pred = scaler.inverse_transform(y_pred.reshape(-1, 1))
+    y_test = y_test.flatten()
+    y_pred = y_pred.flatten()
 
     # RMSE 계산
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
@@ -272,18 +283,25 @@ def evaluate_model(y_test, y_pred, scaler):
 
 def main():
     # read dataset
-    data_name = 'kia_large.csv'
+    data_name = 'genesis_large.csv'
     dataset = pd.read_csv(f'dataset/{data_name}')
 
     # 특정 모델만 걸러내보기
-    # dataset = dataset.loc[dataset['이름'].str.startswith('기아 K5')]
-    # print(dataset)
+    dataset = dataset.loc[dataset['이름'].str.startswith('제네시스 더 올 뉴 G80 3.5 터보')]
+    print(dataset)
+    print(dataset.shape[0])
 
     # preprocessing
     dataset, scaler = preprocess_with_scaling(dataset)
+    print(dataset.shape[0])
+
+
+    # 가격이 outlier인거 제거해보기
+    # dataset = dataset[dataset['가격'] > 0.1]
+
 
     # group data by clustering
-    dataset_dict = group_by_kmeans_clustering_one_column(dataset, data_name)
+    dataset_dict = group_by_dbscan_clustering(dataset, data_name)
 
     # check result by printing
     for cluster, df_cluster in dataset_dict.items():

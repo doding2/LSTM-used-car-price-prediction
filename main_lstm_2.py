@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from keras.src.layers import Dense, LSTM, Input
+from keras.src.layers import Dense, LSTM, Input, Embedding, Bidirectional
 from keras.src.metrics import MeanSquaredError
 from keras.src.models import Sequential
 from keras.src.optimizers import SGD
@@ -91,6 +91,19 @@ def prepare_train_test_normalize(dataset: pd.DataFrame, time_steps, for_periods)
 
 def LSTM_model(X_train, y_train, X_test, scaler):
     # LSTM 아키텍쳐
+    # model = Sequential()
+    # model.add(Input(shape=(X_train.shape[1], 1)))
+    # model.add(
+    #     LSTM(
+    #         units=50,
+    #         return_sequences=True,
+    #         input_shape=(X_train.shape[1], 1),
+    #         activation='tanh'
+    #     )
+    # )
+    # model.add(LSTM(units=50, activation='tanh'))
+    # model.add(Dense(units=2))
+
     model = Sequential()
     model.add(Input(shape=(X_train.shape[1], 1)))
     model.add(
