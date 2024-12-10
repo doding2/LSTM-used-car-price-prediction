@@ -7,6 +7,8 @@ from keras.src.metrics import MeanSquaredError
 from keras.src.models import Sequential
 from keras.src.optimizers import SGD, Adam
 from keras.src.optimizers.schedules import ExponentialDecay
+from keras.src.layers import Attention, Concatenate
+from keras.src import Model
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_squared_log_error, r2_score
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.python.keras.layers import Dropout
@@ -71,7 +73,7 @@ def prepare_train_test_normalize(dataset: pd.DataFrame, time_steps, for_periods)
     y_train = []
     for i in range(time_steps, ts_train_len - 1):
         X_train.append(ts_train_scaled[i-time_steps:i, 0])
-        y_train.append(ts_train_scaled[i:i+for_periods, 0])
+        y_train.append(ts_train_scaled[i, 0])
     X_train, y_train = np.array(X_train), np.array(y_train)
 
     # 3차원으로 재구성 하기
@@ -118,6 +120,44 @@ def LSTM_model(X_train, y_train, X_test, scaler, loss_function='mean_squared_err
     LSTM_prediction = model.predict(X_test)
 
     # 스케일러에 예측값 넣어 반환하기
+    LSTM_prediction = scaler.inverse_transform(LSTM_prediction)
+
+    return model, LSTM_prediction
+
+def LSTM_model_with_attention(X_train, y_train, X_test, scaler, loss_function='mean_squared_error'):
+    # Input 정의
+    input_layer = Input(shape=(X_train.shape[1], 1))
+
+    # LSTM 레이어
+    lstm_out = Bidirectional(LSTM(units=256, return_sequences=True))(input_layer)
+    lstm_out = Bidirectional(LSTM(units=128, return_sequences=True))(lstm_out)
+
+    # Attention 레이어 추가
+    attention = Attention()([lstm_out, lstm_out])  # Self-Attention: Query = Key = Value = lstm_out
+
+    # Attention 결과를 Dense 레이어와 결합
+    concat = Concatenate()([lstm_out, attention])
+    dense_out = Dense(units=1)(concat)
+
+    # 모델 정의
+    model = Model(inputs=input_layer, outputs=dense_out)
+
+    # 컴파일
+    lr_schedule = ExponentialDecay(
+        initial_learning_rate=0.01,
+        decay_steps=100000,
+        decay_rate=0.96,
+        staircase=False
+    )
+    model.compile(optimizer=Adam(learning_rate=lr_schedule), loss=loss_function)
+
+    # 모델 훈련
+    early_stopping = EarlyStopping(monitor='loss', patience=10, restore_best_weights=True)
+    model.fit(X_train, y_train, epochs=50, batch_size=128, verbose=0, callbacks=[early_stopping])
+
+    # 예측 수행
+    LSTM_prediction = model.predict(X_test)
+    LSTM_prediction = np.reshape(LSTM_prediction, (LSTM_prediction.shape[0], -1))
     LSTM_prediction = scaler.inverse_transform(LSTM_prediction)
 
     return model, LSTM_prediction
@@ -194,9 +234,9 @@ def main2():
     # custom_loss = GradientEnhancedLoss(alpha=0.7, beta=1.5)
 
     # 3.b AsymmetricLoss 적용
-    custom_loss = AsymmetricLoss(threshold=0.1, penalty_factor=2.0)
+    # custom_loss = AsymmetricLoss(threshold=0.1, penalty_factor=2.0)
 
-    model, LSTM_prediction = LSTM_model_bidirectional(X_train, y_train, X_test, scaler, custom_loss)
+    model, LSTM_prediction = LSTM_model_with_attention(X_train, y_train, X_test, scaler)
 
     # evaluate prediction performance
     y_pred = pd.DataFrame(LSTM_prediction[:, 0])
