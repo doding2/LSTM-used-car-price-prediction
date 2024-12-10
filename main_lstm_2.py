@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from keras.src.callbacks import EarlyStopping
 from keras.src.layers import Dense, LSTM, Input, Embedding, Bidirectional
 from keras.src.metrics import MeanSquaredError
 from keras.src.models import Sequential
@@ -8,6 +9,9 @@ from keras.src.optimizers import SGD, Adam
 from keras.src.optimizers.schedules import ExponentialDecay
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_squared_log_error, r2_score
 from sklearn.preprocessing import MinMaxScaler
+from tensorflow.python.keras.layers import Dropout
+
+from 추천코드_keras import GradientEnhancedLoss, AsymmetricLoss
 
 
 def preprocess_with_no_scaling(dataset: pd.DataFrame) -> pd.DataFrame:
@@ -89,47 +93,11 @@ def prepare_train_test_normalize(dataset: pd.DataFrame, time_steps, for_periods)
     return X_train, y_train, X_test, scaler
 
 
-def LSTM_model(X_train, y_train, X_test, scaler):
+def LSTM_model(X_train, y_train, X_test, scaler, loss_function='mean_squared_error'):
     # LSTM 아키텍쳐
     model = Sequential()
-    model.add(Input(shape=(X_train.shape[1], 1)))
-    model.add(
-        LSTM(
-            units=50,
-            return_sequences=True,
-            input_shape=(X_train.shape[1], 1),
-            activation='tanh'
-        )
-    )
-    model.add(LSTM(units=50, activation='tanh'))
-    model.add(Dense(units=2))
-
-    # 컴파일링
-    lr_schedule = ExponentialDecay(
-        initial_learning_rate=0.01,
-        decay_steps=100000,
-        decay_rate=0.96,
-        staircase=False
-    )
-    model.compile(optimizer=SGD(learning_rate=lr_schedule, momentum=0.9, nesterov=False), loss='mean_squared_error')
-
-    # training data 세트에 피팅하기
-    model.fit(X_train, y_train, epochs=50, batch_size=150, verbose=0)
-
-    # X_test를 모델에 넣어서 예측하기
-    LSTM_prediction = model.predict(X_test)
-
-    # 스케일러에 예측값 넣어 반환하기
-    LSTM_prediction = scaler.inverse_transform(LSTM_prediction)
-
-    return model, LSTM_prediction
-
-
-def LSTM_model_bidirectional(X_train, y_train, X_test, scaler):
-    # LSTM 아키텍쳐
-    model = Sequential()
-    model.add(Bidirectional(LSTM(units=512, return_sequences=True, input_shape=(X_train.shape[1], 1))))
-    model.add(Bidirectional(LSTM(units=256, return_sequences=False)))
+    model.add(Bidirectional(LSTM(units=256, return_sequences=True, input_shape=(X_train.shape[1], 1))))
+    model.add(Bidirectional(LSTM(units=128, return_sequences=False)))
     model.add(Dense(units=1))
 
     # 컴파일링
@@ -140,10 +108,41 @@ def LSTM_model_bidirectional(X_train, y_train, X_test, scaler):
         staircase=False
     )
     # model.compile(optimizer=SGD(learning_rate=lr_schedule, momentum=0.9, nesterov=False), loss='mean_squared_error')
-    model.compile(optimizer=Adam(learning_rate=lr_schedule), loss='mean_squared_error')
+    model.compile(optimizer=Adam(learning_rate=lr_schedule), loss=loss_function)
 
     # training data 세트에 피팅하기
-    model.fit(X_train, y_train, epochs=50, batch_size=128, verbose=0)
+    early_stopping = EarlyStopping(monitor='loss', patience=10, restore_best_weights=True)
+    model.fit(X_train, y_train, epochs=50, batch_size=128, verbose=0, callbacks=[early_stopping])
+
+    # X_test를 모델에 넣어서 예측하기
+    LSTM_prediction = model.predict(X_test)
+
+    # 스케일러에 예측값 넣어 반환하기
+    LSTM_prediction = scaler.inverse_transform(LSTM_prediction)
+
+    return model, LSTM_prediction
+
+
+def LSTM_model_bidirectional(X_train, y_train, X_test, scaler, loss_function='mean_squared_error'):
+    # LSTM 아키텍쳐
+    model = Sequential()
+    model.add(Bidirectional(LSTM(units=256, return_sequences=True, input_shape=(X_train.shape[1], 1))))
+    model.add(Bidirectional(LSTM(units=128, return_sequences=False)))
+    model.add(Dense(units=1))
+
+    # 컴파일링
+    lr_schedule = ExponentialDecay(
+        initial_learning_rate=0.01,
+        decay_steps=100000,
+        decay_rate=0.96,
+        staircase=False
+    )
+    # model.compile(optimizer=SGD(learning_rate=lr_schedule, momentum=0.9, nesterov=False), loss='mean_squared_error')
+    model.compile(optimizer=Adam(learning_rate=lr_schedule), loss=loss_function)
+
+    # training data 세트에 피팅하기
+    early_stopping = EarlyStopping(monitor='loss', patience=10, restore_best_weights=True)
+    model.fit(X_train, y_train, epochs=50, batch_size=128, verbose=0, callbacks=[early_stopping])
 
     # X_test를 모델에 넣어서 예측하기
     LSTM_prediction = model.predict(X_test)
@@ -191,7 +190,13 @@ def main2():
     X_train, y_train, X_test, scaler = prepare_train_test_normalize(dataset, 5, 2)
 
     # predict using LSTM
-    model, LSTM_prediction = LSTM_model_bidirectional(X_train, y_train, X_test, scaler)
+    # 3.a GradientEnhancedLoss 적용
+    # custom_loss = GradientEnhancedLoss(alpha=0.7, beta=1.5)
+
+    # 3.b AsymmetricLoss 적용
+    custom_loss = AsymmetricLoss(threshold=0.1, penalty_factor=2.0)
+
+    model, LSTM_prediction = LSTM_model_bidirectional(X_train, y_train, X_test, scaler, custom_loss)
 
     # evaluate prediction performance
     y_pred = pd.DataFrame(LSTM_prediction[:, 0])
@@ -201,16 +206,15 @@ def main2():
     print(evaluation_results)
 
     # plot prediction and performance
+    plot_prediction(dataset, LSTM_prediction)
     metrics_text = (
-        f"RMSE: {evaluation_results['RMSE']:.4f}\n"
-        f"MAE: {evaluation_results['MAE']:.4f}\n"
-        f"R²: {evaluation_results['R²']:.4f}\n"
-        f"MAPE: {evaluation_results['MAPE']:.2f}%"
+        f"MAE: {evaluation_results['Results']['MAE']:.4f}\n"
+        f"RMSE: {evaluation_results['Results']['RMSE']:.4f}\n"
+        f"RMSLE: {evaluation_results['Results']['RMSLE']:.4f}\n"
+        f"R²: {evaluation_results['Results']['R2']:.4f}"
     )
     plt.gca().text(0.02, 0.98, metrics_text, transform=plt.gca().transAxes,
                    fontsize=10, verticalalignment='top', bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
-
-    plot_prediction(dataset, LSTM_prediction)
     plt.show()
 
 

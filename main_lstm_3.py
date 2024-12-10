@@ -4,6 +4,7 @@ import pandas as pd
 from keras.src.layers import Dense, LSTM, Input
 from keras.src.metrics import MeanSquaredError
 from keras.src.models import Sequential
+from keras.src.callbacks import EarlyStopping
 from keras.src.optimizers import SGD
 from keras.src.optimizers.schedules import ExponentialDecay
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_squared_log_error, r2_score
@@ -138,7 +139,8 @@ def main3():
 
     # notice that I'm predicting from the ENTIRE sequence, including x_train
     # is important for the model to adjust its states before predicting the end
-    model.fit(x_train, y_train, epochs=100, batch_size=1, verbose=2, validation_data=(x_test, y_test))
+    early_stopping = EarlyStopping(monitor='loss', patience=10, restore_best_weights=True)
+    model.fit(x_train, y_train, epochs=64, batch_size=128, verbose=2, validation_data=(x_test, y_test), callbacks=[early_stopping])
 
 
     # Predicting
