@@ -17,7 +17,7 @@ from 추천코드_keras import GradientEnhancedLoss, AsymmetricLoss
 
 
 def preprocess_with_no_scaling(dataset: pd.DataFrame) -> pd.DataFrame:
-    dataset = dataset[['가격', '최초등록일', '연식', '주행거리', '최대토크', '배기량', '최고출력', '연비']].copy()
+    dataset = dataset[['신차대비가격', '최초등록일', '연식', '주행거리', '최대토크', '배기량', '최고출력', '연비']].copy()
 
     # parse date
     dataset['최초등록일'] = pd.to_datetime(dataset['최초등록일'], yearfirst=True, dayfirst=False)
@@ -41,6 +41,8 @@ def preprocess_with_no_scaling(dataset: pd.DataFrame) -> pd.DataFrame:
     dataset['배기량'] = pd.to_numeric(dataset['배기량'], errors='coerce')
     dataset['최고출력'] = pd.to_numeric(dataset['최고출력'], errors='coerce')
     dataset['연비'] = pd.to_numeric(dataset['연비'], errors='coerce')
+    dataset['신차대비가격'] = pd.to_numeric(dataset['신차대비가격'], errors='coerce')
+    dataset = dataset[dataset['신차대비가격'] > 0]
 
     # drop NaN, sort by datetime index and reset index
     print('Total NaN count:\n', dataset.isna().sum())
@@ -86,7 +88,7 @@ def prepare_train_test_normalize(dataset: pd.DataFrame, time_steps, for_periods)
     X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
 
     # X_test 만들 준비 하기
-    inputs = pd.concat((dataset['가격'][:'2023'], dataset['가격']['2024':]), axis=0).values
+    inputs = pd.concat((dataset['신차대비가격'][:'2023'], dataset['신차대비가격']['2024':]), axis=0).values
     inputs = inputs[len(inputs) - len(ts_test) - time_steps:]
     inputs = inputs.reshape(-1, 1)
     inputs = scaler.transform(inputs)
@@ -201,7 +203,7 @@ def LSTM_model_bidirectional(X_train, y_train, X_test, scaler, loss_function='me
 
 def plot_prediction(all_data, y_pred):
     actual_pred = pd.DataFrame(columns=['Real', 'Predict'])
-    actual_pred['Real'] = all_data.loc['2024':, '가격'][0:len(y_pred)]
+    actual_pred['Real'] = all_data.loc['2024':, '신차대비가격'][0:len(y_pred)]
     actual_pred['Predict'] = y_pred[:, 0]
 
     m = MeanSquaredError()
@@ -246,7 +248,7 @@ def main():
 
     # evaluate prediction performance
     y_pred = pd.DataFrame(LSTM_prediction[:, 0])
-    y_test = dataset.loc['2024':, '가격'][0:len(LSTM_prediction)]
+    y_test = dataset.loc['2024':, '신차대비가격'][0:len(LSTM_prediction)]
     y_test.reset_index(drop=True, inplace=True)
     evaluation_results = confirm_result(y_test, y_pred)
     print(evaluation_results)
