@@ -17,6 +17,9 @@ from 추천코드_keras import GradientEnhancedLoss, AsymmetricLoss
 
 
 def preprocess_with_no_scaling(dataset: pd.DataFrame) -> pd.DataFrame:
+    # '이름' 컬럼이 '기아 K5'로 시작하는 데이터만 필터링
+    # dataset = dataset[dataset['이름'].astype(str).str.startswith('기아 K7')]
+
     dataset = dataset[['신차대비가격', '최초등록일', '연식', '주행거리', '최대토크', '배기량', '최고출력', '연비']].copy()
 
     # parse date
@@ -211,6 +214,11 @@ def plot_prediction(all_data, y_pred):
 
     return m.result().numpy(), actual_pred.plot()
 
+    # actual_pred = pd.DataFrame(columns=['Real'])
+    # actual_pred['Real'] = all_data.loc['2024':, '신차대비가격']
+    #
+    # return actual_pred.plot()  # `Predict` 없이 `Real` 값만 플로팅
+
 
 def confirm_result(y_test, y_pred):
     MAE = mean_absolute_error(y_test, y_pred)
@@ -228,7 +236,7 @@ def confirm_result(y_test, y_pred):
 
 def main():
     # read dataset
-    data_name = 'kia_large.csv'
+    data_name = 'genesis_large.csv'
     dataset = pd.read_csv(f'dataset/{data_name}')
 
     # preprocessing
