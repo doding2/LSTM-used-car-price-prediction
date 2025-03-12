@@ -136,15 +136,17 @@ def plot_prediction(all_data, y_pred):
     return actual_pred.plot()
 
 def main4():
-    dataset = pd.read_csv('dataset/kia_large.csv')
+    data_name = 'kia_large'
+
+    dataset = pd.read_csv(f'dataset/{data_name}.csv')
     dataset = preprocess_with_no_scaling(dataset)
     X_train, y_train, X_test, scaler = prepare_train_test_normalize(dataset, 10, 2)
     model, CNN_prediction = CNN_model(X_train, y_train, X_test, scaler)
 
     # 스케일러 저장
-    joblib.dump(scaler, 'trained/cnn_model_scaler.pkl')
+    joblib.dump(scaler, f'trained/{data_name}_scaler.pkl')
     # 학습된 모델 저장
-    model.save('trained/cnn_model.h5')
+    model.save(f'trained/{data_name}_model.h5')
 
     y_pred = pd.DataFrame(CNN_prediction[:, 0])
     y_test = dataset.loc['2024':, '신차대비가격'][:len(CNN_prediction)].reset_index(drop=True)
