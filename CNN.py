@@ -8,6 +8,7 @@ from keras.src.optimizers import Adam
 from keras.src.optimizers.schedules import ExponentialDecay
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_squared_log_error, r2_score
 from sklearn.preprocessing import MinMaxScaler
+import joblib
 
 def preprocess_with_no_scaling(dataset: pd.DataFrame) -> pd.DataFrame:
     # '이름' 컬럼이 '기아 K5'로 시작하는 데이터만 필터링
@@ -139,6 +140,12 @@ def main4():
     dataset = preprocess_with_no_scaling(dataset)
     X_train, y_train, X_test, scaler = prepare_train_test_normalize(dataset, 10, 2)
     model, CNN_prediction = CNN_model(X_train, y_train, X_test, scaler)
+
+    # 스케일러 저장
+    joblib.dump(scaler, 'trained/cnn_model_scaler.pkl')
+    # 학습된 모델 저장
+    model.save('trained/cnn_model.h5')
+
     y_pred = pd.DataFrame(CNN_prediction[:, 0])
     y_test = dataset.loc['2024':, '신차대비가격'][:len(CNN_prediction)].reset_index(drop=True)
     evaluation_results = confirm_result(y_test, y_pred)
