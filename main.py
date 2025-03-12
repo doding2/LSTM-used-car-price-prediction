@@ -236,7 +236,7 @@ def confirm_result(y_test, y_pred):
 
 def main():
     # read dataset
-    data_name = 'genesis_large.csv'
+    data_name = 'kia_large.csv'
     dataset = pd.read_csv(f'dataset/{data_name}')
 
     # preprocessing

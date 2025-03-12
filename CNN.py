@@ -71,6 +71,7 @@ def prepare_train_test_normalize(dataset: pd.DataFrame, time_steps, for_periods)
     X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
     return X_train, y_train, X_test, scaler
 
+
 def CNN_model(X_train, y_train, X_test, scaler, loss_function='mean_squared_error'):
     time_steps = X_train.shape[1]  # X_train.shape = (batch, time_steps, 1)
     kernel_size = min(3, time_steps)  # kernel_size가 time_steps보다 크지 않도록 설정
@@ -96,6 +97,34 @@ def CNN_model(X_train, y_train, X_test, scaler, loss_function='mean_squared_erro
     return model, CNN_prediction
 
 
+def CNN_model2(X_train, y_train, X_test, scaler, loss_function='mean_squared_error'):
+    time_steps = X_train.shape[1]  # X_train.shape = (batch, time_steps, 1)
+    kernel_size = min(3, time_steps)  # kernel_size가 time_steps보다 크지 않도록 설정
+
+    model = Sequential([
+        Conv1D(filters=128, kernel_size=kernel_size, activation='relu', input_shape=(time_steps, 1)),
+        MaxPooling1D(pool_size=2),
+        Dropout(0.3),
+        Conv1D(filters=64, kernel_size=kernel_size, activation='relu'),
+        MaxPooling1D(pool_size=2),
+        Dropout(0.3),
+        Flatten(),
+        Dense(128, activation='relu'),
+        Dropout(0.3),
+        Dense(1, activation='linear')  # 회귀 문제이므로 'linear' 사용
+    ])
+
+    # 학습 설정
+    optimizer = Adam(learning_rate=0.0005)  # 기존보다 낮은 학습률
+    model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
+
+    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+    model.fit(X_train, y_train, epochs=100, batch_size=32, validation_split=0.2, callbacks=[early_stopping])
+
+    CNN_prediction = scaler.inverse_transform(model.predict(X_test))
+    return model, CNN_prediction
+
+
 def confirm_result(y_test, y_pred):
     MAE, RMSE = mean_absolute_error(y_test, y_pred), np.sqrt(mean_squared_error(y_test, y_pred))
     RMSLE, R2 = np.sqrt(mean_squared_log_error(y_test, y_pred)), r2_score(y_test, y_pred)
@@ -106,7 +135,7 @@ def plot_prediction(all_data, y_pred):
     return actual_pred.plot()
 
 def main4():
-    dataset = pd.read_csv('dataset/chevrolet_daewoo_compact.csv')
+    dataset = pd.read_csv('dataset/kia_large.csv')
     dataset = preprocess_with_no_scaling(dataset)
     X_train, y_train, X_test, scaler = prepare_train_test_normalize(dataset, 10, 2)
     model, CNN_prediction = CNN_model(X_train, y_train, X_test, scaler)
